@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skill 库数据看板</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F5F5F7;--card:#FFFFFF;--blue:#007AFF;--blue-light:#E8F1FF;
+  --text:#1D1D1F;--sub:#6E6E73;--border:#E5E5EA;
+  --green:#34C759;--orange:#FF9500;--red:#FF3B30;
+  --radius:18px;--shadow:0 2px 20px rgba(0,0,0,.06);
+}
+body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','PingFang SC',sans-serif;color:var(--text);min-height:100vh}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(245,245,247,.85);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border);padding:0 32px;height:52px;display:flex;align-items:center;justify-content:space-between}
+.topbar-title{font-size:15px;font-weight:600;letter-spacing:-.2px}
+.topbar-time{font-size:12px;color:var(--sub)}
+.page{max-width:1100px;margin:0 auto;padding:32px 24px 64px}
+.section-title{font-size:22px;font-weight:700;letter-spacing:-.5px;margin:40px 0 16px}
+.section-title:first-child{margin-top:0}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+.kpi-card{background:var(--card);border-radius:var(--radius);padding:20px 18px;box-shadow:var(--shadow)}
+.kpi-label{font-size:12px;color:var(--sub);margin-bottom:8px;font-weight:500}
+.kpi-value{font-size:32px;font-weight:700;letter-spacing:-1px;font-variant-numeric:tabular-nums;line-height:1}
+.kpi-value.blue{color:var(--blue)}
+.kpi-sub{font-size:11px;color:var(--sub);margin-top:6px}
+
+/* 排行榜：统一大卡片，左右两栏对齐 */
+.rank-outer{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px}
+.rank-inner{display:grid;grid-template-columns:1fr 1fr;gap:0 32px}
+.rank-col-title{font-size:14px;font-weight:600;color:var(--sub);padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.rank-row{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);min-height:56px}
+.rank-row:last-child{border-bottom:none}
+.rank-medal{font-size:18px;width:28px;flex-shrink:0;text-align:center}
+.rank-name-wrap{flex:1;display:flex;flex-direction:column;align-items:flex-start;overflow:hidden;padding-left:8px;min-width:0;gap:2px}
+.rank-name-row{display:flex;align-items:center;min-width:0}
+.rank-creator{font-size:11px;color:var(--sub);opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.rank-name-btn{flex:0 1 auto;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0;background:none;border:none;text-align:left;cursor:pointer;color:var(--sub);transition:color .15s;min-width:0}
+.rank-name-btn:hover{color:var(--blue)}
+.rank-name-btn.has-cl{color:var(--sub);text-decoration:underline dotted}
+.rank-name-btn.has-cl:hover{color:var(--blue)}
+.rank-gh-link{flex:0 0 auto;font-size:12px;color:var(--sub);text-decoration:none;padding:0 0 0 2px;transition:color .15s}
+.rank-gh-link:hover{color:var(--blue)}
+.rank-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.rank-num{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--blue)}
+.rank-num.score{color:var(--orange)}
+.rank-unit{font-size:11px;color:var(--sub)}
+.bar-wrap{width:72px;height:4px;background:#F0F0F3;border-radius:2px;margin-top:4px}
+.bar-fill{height:4px;background:var(--blue);border-radius:2px}
+
+/* Change Log 展开面板 */
+.cl-panel{display:none;grid-column:1/-1;background:#F8F8FA;border-radius:12px;padding:16px;margin:4px 0 8px;border:1px solid var(--border)}
+.cl-panel.open{display:block}
+.cl-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cl-panel-name{font-size:14px;font-weight:600}
+.cl-close{background:none;border:none;font-size:18px;cursor:pointer;color:var(--sub);line-height:1;padding:2px 6px;border-radius:6px}
+.cl-close:hover{background:var(--border)}
+.cl-table{width:100%;border-collapse:collapse;font-size:12px}
+.cl-table thead th{background:#EFEFEF;padding:7px 10px;text-align:left;font-weight:600;color:var(--sub);font-size:11px;border-bottom:1px solid var(--border)}
+.cl-table tbody tr{border-bottom:1px solid var(--border)}
+.cl-table tbody tr:last-child{border-bottom:none}
+.cl-table tbody td{padding:7px 10px;vertical-align:top}
+.cl-ver{font-weight:700;color:var(--blue);white-space:nowrap}
+.cl-change{max-width:260px}
+.cl-score{color:var(--orange);font-weight:600}
+.cl-empty{font-size:13px;color:var(--sub);padding:8px 0}
+
+/* 三列排行（文档数） */
+.rank-triple{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:0}
+.rank-card{background:var(--card);border-radius:var(--radius);padding:22px 22px 14px;box-shadow:var(--shadow)}
+.rank-card-title{font-size:14px;font-weight:600;color:var(--sub);margin-bottom:16px}
+.rank-card .rank-row{min-height:auto}
+
+/* 人员贡献 */
+.people-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.person-card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.person-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:#fff;flex-shrink:0}
+.person-name{font-size:16px;font-weight:600}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+.stat-row:last-child{border-bottom:none}
+.stat-label{font-size:12px;color:var(--sub)}
+.stat-val{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.na{color:var(--sub);font-weight:400}
+.score-val{color:var(--orange);font-weight:700}
+
+/* 完整 Skill 清单 */
+.table-wrap{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:#FAFAFA;padding:12px 16px;text-align:left;font-size:11px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
+thead th:hover{color:var(--blue)}
+tbody tr{border-bottom:1px solid var(--border)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#FAFAFA}
+tbody td{padding:12px 16px;vertical-align:middle}
+.tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500;background:var(--blue-light);color:var(--blue)}
+.ver-badge{display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;background:#F0F0F3;color:var(--sub)}
+.calls-num{font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums}
+.doc-count-num{font-weight:600;color:var(--green)}
+.doc-count-link{font-weight:700;color:var(--blue);text-decoration:none;font-size:13px;transition:opacity .15s}
+.doc-count-link:hover{opacity:.7}
+.doc-count-btn{font-weight:700;color:var(--blue);font-size:13px;background:none;border:none;cursor:pointer;padding:0;transition:opacity .15s}
+.doc-count-btn:hover{opacity:.7}
+/* 多文档浮层 */
+.doc-popup{position:fixed;z-index:999;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.18);padding:16px 18px;min-width:280px;max-width:400px;display:none}
+.doc-popup.open{display:block}
+.doc-popup-title{font-size:13px;font-weight:600;color:var(--sub);margin-bottom:10px}
+.doc-popup-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;text-decoration:none;color:var(--text);font-size:13px;transition:background .12s}
+.doc-popup-item:hover{background:var(--blue-light);color:var(--blue)}
+.doc-popup-close{position:absolute;top:10px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--sub);line-height:1}
+
+/* 产出文档 */
+.doc-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.doc-item{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#F5F5F7;border-radius:10px;text-decoration:none;color:var(--text);transition:background .15s;position:relative}
+.doc-item:hover{background:#E8F1FF}
+.doc-item-arrow{margin-left:auto;font-size:12px;color:var(--blue);opacity:.6;flex-shrink:0}
+.doc-icon{font-size:16px;flex-shrink:0}
+.doc-title{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.doc-card-header{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.doc-skill-name{font-size:15px;font-weight:600}
+.doc-cat-tag{font-size:11px;padding:2px 8px;border-radius:6px;background:var(--blue-light);color:var(--blue);font-weight:500}
+.doc-creator{font-size:12px;color:var(--sub);margin-bottom:10px}
+.docs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(3,1fr)}
+  .rank-inner{grid-template-columns:1fr}
+  .rank-triple{grid-template-columns:1fr}
+  .people-grid{grid-template-columns:1fr 1fr}
+  .docs-grid{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .people-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="topbar-title">&#128230; Skill 库数据看板</span>
+  <span class="topbar-time">更新于 2026-06-04 23:21</span>
+</div>
+<div class="page">
+
+<div class="section-title">整体概况</div>
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Skill 总数</div>
+    <div class="kpi-value blue">45</div>
+    <div class="kpi-sub">已建立调用记录表</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">累计调用量</div>
+    <div class="kpi-value">24</div>
+    <div class="kpi-sub">全部 Skill 合计</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">生成文档数</div>
+    <div class="kpi-value" style="color:var(--green)">17</div>
+    <div class="kpi-sub">Skill 产出文档合计</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">有评分 Skill</div>
+    <div class="kpi-value">11</div>
+    <div class="kpi-sub">平均分 4.26</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">GitHub Commits</div>
+    <div class="kpi-value">615</div>
+    <div class="kpi-sub">仓库总提交次数</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">贡献成员</div>
+    <div class="kpi-value">8</div>
+    <div class="kpi-sub">创建过 Skill 的成员</div>
+  </div>
+</div>
+
+<div class="section-title">Skill 排行榜</div>
+
+<!-- 调用量 & 评分 双列对齐 -->
+<div class="rank-outer" style="margin-bottom:16px">
+  <div class="rank-inner">
+    <div class="rank-col-title">&#128293; 调用量 TOP 5</div>
+    <div class="rank-col-title">&#11088; 评分 TOP 5</div>
+<div class="rank-row">
+      <span class="rank-medal">🥇</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn " data-skill="pinseng-detail-image-generator" onclick="toggleCL(this)">pinseng-detail-image-generator</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/design/pinseng-detail-image-generator/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num">5</span>
+        <span class="rank-unit">次调用</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">🥇</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn has-cl" data-skill="team-user-and-scenario-analysis" title="点击查看 Change Log" onclick="toggleCL(this)">team-user-and-scenario-analysis</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/team-user-and-scenario-analysis/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num score">5.0</span>
+        <span class="rank-unit">均分</span>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">🥈</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn has-cl" data-skill="team-market-analysis-report" title="点击查看 Change Log" onclick="toggleCL(this)">team-market-analysis-report</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/team-market-analysis-report/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num">4</span>
+        <span class="rank-unit">次调用</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:80%"></div></div>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">🥈</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn " data-skill="ai-builder-intel" onclick="toggleCL(this)">ai-builder-intel</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/ai-builder-intel/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num score">5.0</span>
+        <span class="rank-unit">均分</span>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">🥉</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn has-cl" data-skill="team-competitor-analysis" title="点击查看 Change Log" onclick="toggleCL(this)">team-competitor-analysis</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/team-competitor-analysis/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num">4</span>
+        <span class="rank-unit">次调用</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:80%"></div></div>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">🥉</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn " data-skill="team-3c-intel-report" onclick="toggleCL(this)">team-3c-intel-report</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/—/team-3c-intel-report/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num score">5.0</span>
+        <span class="rank-unit">均分</span>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">④</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn " data-skill="ai-builder-intel" onclick="toggleCL(this)">ai-builder-intel</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/ai-builder-intel/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num">2</span>
+        <span class="rank-unit">次调用</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:40%"></div></div>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">④</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn " data-skill="team-ai-hardware-intel-monitor" onclick="toggleCL(this)">team-ai-hardware-intel-monitor</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/team-ai-hardware-intel-monitor/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num score">5.0</span>
+        <span class="rank-unit">均分</span>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">⑤</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn " data-skill="team-3c-intel-report" onclick="toggleCL(this)">team-3c-intel-report</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/—/team-3c-intel-report/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：吕应龙</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num">2</span>
+        <span class="rank-unit">次调用</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:40%"></div></div>
+      </div>
+    </div>
+<div class="rank-row">
+      <span class="rank-medal">⑤</span>
+      <div class="rank-name-wrap">
+        <div class="rank-name-row"><button class="rank-name-btn " data-skill="ai-framework-weekly" onclick="toggleCL(this)">ai-framework-weekly</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/—/ai-framework-weekly/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+        <span class="rank-creator">创建人：—</span>
+      </div>
+      <div class="rank-meta">
+        <span class="rank-num score">5.0</span>
+        <span class="rank-unit">均分</span>
+      </div>
+    </div>
+  </div><!-- /rank-inner -->
+
+  <!-- Change Log 展开面板（共享，插入大卡片内） -->
+  <div id="clPanel" class="cl-panel">
+    <div class="cl-panel-header">
+      <span class="cl-panel-name" id="clPanelName"></span>
+      <button class="cl-close" onclick="closeCL()">✕</button>
+    </div>
+    <div id="clPanelBody"></div>
+  </div>
+</div><!-- /rank-outer -->
+<div class="rank-card" style="margin-bottom:0">
+  <div class="rank-card-title">&#128196; 生成文档数 TOP 5</div>
+  <div class="rank-row">
+    <span class="rank-medal">🥇</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><button class="rank-name-btn has-cl" data-skill="team-competitor-analysis" title="点击查看 Change Log" onclick="toggleCLDocs(this)">team-competitor-analysis</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/team-competitor-analysis/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+      <span class="rank-creator">创建人：吕应龙</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--green)">5</span>
+      <span class="rank-unit">篇文档</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+    </div>
+  </div>  <div class="rank-row">
+    <span class="rank-medal">🥈</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><button class="rank-name-btn has-cl" data-skill="team-market-analysis-report" title="点击查看 Change Log" onclick="toggleCLDocs(this)">team-market-analysis-report</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/team-market-analysis-report/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+      <span class="rank-creator">创建人：吕应龙</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--green)">4</span>
+      <span class="rank-unit">篇文档</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:80%"></div></div>
+    </div>
+  </div>  <div class="rank-row">
+    <span class="rank-medal">🥉</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><button class="rank-name-btn " data-skill="ai-builder-intel" onclick="toggleCLDocs(this)">ai-builder-intel</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/ai-builder-intel/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+      <span class="rank-creator">创建人：吕应龙</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--green)">2</span>
+      <span class="rank-unit">篇文档</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:40%"></div></div>
+    </div>
+  </div>  <div class="rank-row">
+    <span class="rank-medal">④</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><button class="rank-name-btn has-cl" data-skill="team-user-and-scenario-analysis" title="点击查看 Change Log" onclick="toggleCLDocs(this)">team-user-and-scenario-analysis</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/research/team-user-and-scenario-analysis/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+      <span class="rank-creator">创建人：吕应龙</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--green)">1</span>
+      <span class="rank-unit">篇文档</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:20%"></div></div>
+    </div>
+  </div>  <div class="rank-row">
+    <span class="rank-medal">⑤</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><button class="rank-name-btn " data-skill="team-prd-generation" onclick="toggleCLDocs(this)">team-prd-generation</button><a class="rank-gh-link" href="https://github.com/lyl-0722/team-skills-demo/blob/main/team-skill/product/team-prd-generation/SKILL.md" target="_blank" title="查看 SKILL.md">↗</a></div>
+      <span class="rank-creator">创建人：吕应龙</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--green)">1</span>
+      <span class="rank-unit">篇文档</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:20%"></div></div>
+    </div>
+  </div>
+  <!-- Change Log 展开面板（文档数TOP5专属） -->
+  <div id="clPanelDocs" class="cl-panel">
+    <div class="cl-panel-header">
+      <span class="cl-panel-name" id="clPanelDocsName"></span>
+      <button class="cl-close" onclick="closeCLDocs()">✕</button>
+    </div>
+    <div id="clPanelDocsBody"></div>
+  </div>
+</div>
+
+<div class="section-title">&#128293; 团队 Skill 积极度排名</div>
+<div class="rank-outer">
+<div style="font-size:12px;color:var(--sub);margin-bottom:14px">每次完成 Skill 任务并评分即 +1，反映成员主动使用 Skill 的积极程度</div>
+  <div class="rank-row">
+    <span class="rank-medal">🥇</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><span class="rank-name-btn">吕应龙</span></div>
+      <span class="rank-creator">最近评分：2026-06-02</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--red)">21</span>
+      <span class="rank-unit">次</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:100%;background:var(--red)"></div></div>
+    </div>
+  </div>
+  <div class="rank-row">
+    <span class="rank-medal">🥈</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><span class="rank-name-btn">丛泽龙</span></div>
+      <span class="rank-creator">最近评分：2026-05-12</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--red)">2</span>
+      <span class="rank-unit">次</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:9%;background:var(--red)"></div></div>
+    </div>
+  </div>
+  <div class="rank-row">
+    <span class="rank-medal">🥉</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><span class="rank-name-btn">余宜樟</span></div>
+      <span class="rank-creator">最近评分：2026-05-12</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--red)">1</span>
+      <span class="rank-unit">次</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:4%;background:var(--red)"></div></div>
+    </div>
+  </div>
+  <div class="rank-row">
+    <span class="rank-medal">④</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><span class="rank-name-btn">余宜樟</span></div>
+      <span class="rank-creator">最近评分：2026-05-12</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--red)">1</span>
+      <span class="rank-unit">次</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:4%;background:var(--red)"></div></div>
+    </div>
+  </div>
+  <div class="rank-row">
+    <span class="rank-medal">⑤</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><span class="rank-name-btn">王磊</span></div>
+      <span class="rank-creator">最近评分：2026-05-12</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--red)">1</span>
+      <span class="rank-unit">次</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:4%;background:var(--red)"></div></div>
+    </div>
+  </div>
+  <div class="rank-row">
+    <span class="rank-medal">6</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><span class="rank-name-btn">丛泽龙</span></div>
+      <span class="rank-creator">最近评分：2026-05-26</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--red)">0</span>
+      <span class="rank-unit">次</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:0%;background:var(--red)"></div></div>
+    </div>
+  </div>
+  <div class="rank-row">
+    <span class="rank-medal">7</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><span class="rank-name-btn">林志坚</span></div>
+      <span class="rank-creator">最近评分：2026-06-04</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--red)">0</span>
+      <span class="rank-unit">次</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:0%;background:var(--red)"></div></div>
+    </div>
+  </div>
+  <div class="rank-row">
+    <span class="rank-medal">8</span>
+    <div class="rank-name-wrap">
+      <div class="rank-name-row"><span class="rank-name-btn">林志坚</span></div>
+      <span class="rank-creator">最近评分：2026-06-02</span>
+    </div>
+    <div class="rank-meta">
+      <span class="rank-num" style="color:var(--red)">0</span>
+      <span class="rank-unit">次</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:0%;background:var(--red)"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">人员贡献</div>
+<div class="people-grid">
+  <div class="person-card">
+    <div class="person-header">
+      <div class="avatar" style="background:#007AFF">龙</div>
+      <div>
+        <div class="person-name">吕应龙</div>
+        <div class="stat-label">AI产品中心</div>
+      </div>
+    </div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 数</span><span class="stat-val">12</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 累计调用</span><span class="stat-val calls-num">22</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 均分</span><span class="stat-val"><span class="score-val">4.6</span></span></div>
+    <div class="stat-row"><span class="stat-label">产出文档数</span><span class="stat-val doc-count-num">7</span></div>
+  </div>
+  <div class="person-card">
+    <div class="person-header">
+      <div class="avatar" style="background:#34C759">龙</div>
+      <div>
+        <div class="person-name">丛泽龙</div>
+        <div class="stat-label">AI产品中心</div>
+      </div>
+    </div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 数</span><span class="stat-val">2</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 累计调用</span><span class="stat-val calls-num">2</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 均分</span><span class="stat-val"><span class="score-val">4.5</span></span></div>
+    <div class="stat-row"><span class="stat-label">产出文档数</span><span class="stat-val doc-count-num">0</span></div>
+  </div>
+  <div class="person-card">
+    <div class="person-header">
+      <div class="avatar" style="background:#FF9500">樟</div>
+      <div>
+        <div class="person-name">余宜樟</div>
+        <div class="stat-label">AI产品中心</div>
+      </div>
+    </div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 数</span><span class="stat-val">1</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 累计调用</span><span class="stat-val calls-num">1</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 均分</span><span class="stat-val"><span class="score-val">5.0</span></span></div>
+    <div class="stat-row"><span class="stat-label">产出文档数</span><span class="stat-val doc-count-num">0</span></div>
+  </div>
+  <div class="person-card">
+    <div class="person-header">
+      <div class="avatar" style="background:#FF3B30">樟</div>
+      <div>
+        <div class="person-name">余宜樟</div>
+        <div class="stat-label">AI产品中心</div>
+      </div>
+    </div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 数</span><span class="stat-val">1</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 累计调用</span><span class="stat-val calls-num">1</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 均分</span><span class="stat-val"><span class="score-val">5.0</span></span></div>
+    <div class="stat-row"><span class="stat-label">产出文档数</span><span class="stat-val doc-count-num">1</span></div>
+  </div>
+  <div class="person-card">
+    <div class="person-header">
+      <div class="avatar" style="background:#AF52DE">磊</div>
+      <div>
+        <div class="person-name">王磊</div>
+        <div class="stat-label">AI产品中心</div>
+      </div>
+    </div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 数</span><span class="stat-val">1</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 累计调用</span><span class="stat-val calls-num">1</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 均分</span><span class="stat-val"><span class="score-val">1.0</span></span></div>
+    <div class="stat-row"><span class="stat-label">产出文档数</span><span class="stat-val doc-count-num">0</span></div>
+  </div>
+  <div class="person-card">
+    <div class="person-header">
+      <div class="avatar" style="background:#5AC8FA">龙</div>
+      <div>
+        <div class="person-name">丛泽龙</div>
+        <div class="stat-label">AI产品中心</div>
+      </div>
+    </div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 数</span><span class="stat-val">0</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 累计调用</span><span class="stat-val calls-num">0</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 均分</span><span class="stat-val"><span class="na">—</span></span></div>
+    <div class="stat-row"><span class="stat-label">产出文档数</span><span class="stat-val doc-count-num">0</span></div>
+  </div>
+  <div class="person-card">
+    <div class="person-header">
+      <div class="avatar" style="background:#FF2D55">坚</div>
+      <div>
+        <div class="person-name">林志坚</div>
+        <div class="stat-label">AI产品中心</div>
+      </div>
+    </div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 数</span><span class="stat-val">0</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 累计调用</span><span class="stat-val calls-num">0</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 均分</span><span class="stat-val"><span class="na">—</span></span></div>
+    <div class="stat-row"><span class="stat-label">产出文档数</span><span class="stat-val doc-count-num">0</span></div>
+  </div>
+  <div class="person-card">
+    <div class="person-header">
+      <div class="avatar" style="background:#007AFF">坚</div>
+      <div>
+        <div class="person-name">林志坚</div>
+        <div class="stat-label">AI产品中心</div>
+      </div>
+    </div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 数</span><span class="stat-val">0</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 累计调用</span><span class="stat-val calls-num">0</span></div>
+    <div class="stat-row"><span class="stat-label">创建 Skill 均分</span><span class="stat-val"><span class="na">—</span></span></div>
+    <div class="stat-row"><span class="stat-label">产出文档数</span><span class="stat-val doc-count-num">0</span></div>
+  </div>
+</div>
+
+<div class="section-title">&#128196; 产出文档</div>
+<div class="docs-grid">
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">team-market-analysis-report</span>
+      <span class="doc-cat-tag">research</span>
+    </div>
+    <div class="doc-creator">创建人：吕应龙</div>
+    <div class="doc-list">
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/vy20BglGWOeM9ro7t0R60GgnJA7depqY')"><span class="doc-icon">&#128196;</span><span class="doc-title">[研究] iDock AI桌面助手市场分析报告_v1.0</span><span class="doc-item-arrow">↗</span></a>
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/lyQod3RxJK3vP6oZI4w36dGqJkb4Mw9r')"><span class="doc-icon">&#128196;</span><span class="doc-title">[研究] 养老智能机器人市场调研报告_v1.1</span><span class="doc-item-arrow">↗</span></a>
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/R1zknDm0WR3kM5obIxNz9MnYVBQEx5rG')"><span class="doc-icon">&#128196;</span><span class="doc-title">AI桌面机器人市场研究报告_v1.0</span><span class="doc-item-arrow">↗</span></a>
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/Qnp9zOoBVBZeP6ogcLpRKBb9V1DK0g6l')"><span class="doc-icon">&#128196;</span><span class="doc-title">[研究] AI智能耳机市场分析_v1.1</span><span class="doc-item-arrow">↗</span></a>
+    </div>
+  </div>
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">team-competitor-analysis</span>
+      <span class="doc-cat-tag">research</span>
+    </div>
+    <div class="doc-creator">创建人：吕应龙</div>
+    <div class="doc-list">
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/mExel2BLV54yYaZRimk034ewWgk9rpMq')"><span class="doc-icon">&#128196;</span><span class="doc-title">[研究] iDock智能桌面机器人·竞品分析_v5.1</span><span class="doc-item-arrow">↗</span></a>
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/qnYMoO1rWxDbGv1gczO9mmLoW47Z3je9')"><span class="doc-icon">&#128196;</span><span class="doc-title">AI桌面机器人竞品分析报告（2026年5月）</span><span class="doc-item-arrow">↗</span></a>
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('file:///C:/Users/pc/.real/users/user-75bf04f562d8470cbcbfd3a60579a954/workspace/projects/default/artifacts/AI%E6%99%BA%E8%83%BD%E8%80%B3%E6%9C%BA%E7%AB%9E%E5%93%81%E5%88%86%E6%9E%90%E6%8A%A5%E5%91%8A.md')"><span class="doc-icon">&#128196;</span><span class="doc-title">AI智能耳机竞品分析报告</span><span class="doc-item-arrow">↗</span></a>
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('file:///Users/linxiansheng/.real/users/user-25860d97f4c11cf5c903f54e8e0cc543/workspace/projects/default/artifacts/powerbank_competitor_analysis_2026.md')"><span class="doc-icon">&#128196;</span><span class="doc-title">充电宝品类竞品分析报告 (2026)</span><span class="doc-item-arrow">↗</span></a>
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/6LeBq413JAzePQoDir1QPqdO8DOnGvpb')"><span class="doc-icon">&#128196;</span><span class="doc-title">充电宝竞品分析报告（2026年6月）</span><span class="doc-item-arrow">↗</span></a>
+    </div>
+  </div>
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">ai-builder-intel</span>
+      <span class="doc-cat-tag">research</span>
+    </div>
+    <div class="doc-creator">创建人：吕应龙</div>
+    <div class="doc-list">
+<span class="doc-item"><span class="doc-icon">&#128196;</span><span class="doc-title">ai_intel_20260519.html</span></span>
+<span class="doc-item"><span class="doc-icon">&#128196;</span><span class="doc-title">ai_intel_20260526.html</span></span>
+    </div>
+  </div>
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">team-3c-intel-report</span>
+      <span class="doc-cat-tag">—</span>
+    </div>
+    <div class="doc-creator">创建人：吕应龙</div>
+    <div class="doc-list">
+<span class="doc-item"><span class="doc-icon">&#128196;</span><span class="doc-title">3c_intel_2026-05-27.html</span></span>
+    </div>
+  </div>
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">team-weekly-report-generator</span>
+      <span class="doc-cat-tag">project</span>
+    </div>
+    <div class="doc-creator">创建人：丛泽龙</div>
+    <div class="doc-list">
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/EpGBa2Lm8azjwEXkiEDqnMZBWgN7R35y')"><span class="doc-icon">&#128196;</span><span class="doc-title">AI产品中心周报（2026年5月第4周）No.17</span><span class="doc-item-arrow">↗</span></a>
+    </div>
+  </div>
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">team-ai-hardware-intel-monitor</span>
+      <span class="doc-cat-tag">research</span>
+    </div>
+    <div class="doc-creator">创建人：吕应龙</div>
+    <div class="doc-list">
+<span class="doc-item"><span class="doc-icon">&#128196;</span><span class="doc-title">ai_hardware_intel_20260520.html</span></span>
+    </div>
+  </div>
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">team-company-research</span>
+      <span class="doc-cat-tag">research</span>
+    </div>
+    <div class="doc-creator">创建人：吕应龙</div>
+    <div class="doc-list">
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/2Amq4vjg89ge6R73IP4wPQ62V3kdP0wQ')"><span class="doc-icon">&#128196;</span><span class="doc-title">[研究] 可以科技公司研究_v2.0</span><span class="doc-item-arrow">↗</span></a>
+    </div>
+  </div>
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">team-prd-generation</span>
+      <span class="doc-cat-tag">product</span>
+    </div>
+    <div class="doc-creator">创建人：吕应龙</div>
+    <div class="doc-list">
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/R1zknDm0WR3kM5obIxZLZp0zVBQEx5rG')"><span class="doc-icon">&#128196;</span><span class="doc-title">[PRD] iDock AI智能充电底座_v1.1</span><span class="doc-item-arrow">↗</span></a>
+    </div>
+  </div>
+  <div class="doc-card">
+    <div class="doc-card-header">
+      <span class="doc-skill-name">team-user-and-scenario-analysis</span>
+      <span class="doc-cat-tag">research</span>
+    </div>
+    <div class="doc-creator">创建人：吕应龙</div>
+    <div class="doc-list">
+<a class="doc-item" href="javascript:void(0)" onclick="openLink('https://alidocs.dingtalk.com/i/nodes/NZQYprEoWoebG613tDgaymZmJ1waOeDk')"><span class="doc-icon">&#128196;</span><span class="doc-title">[研究]iDock 智能桌面机器人 · 人群与场景分析报告_v1.0</span><span class="doc-item-arrow">↗</span></a>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">完整 Skill 清单</div>
+<div class="table-wrap">
+<table id="skillTable"><thead><tr><th>Skill 名称</th><th>分类</th><th>创建人</th><th>最新版本</th><th>调用量 &#8595;</th><th>均分</th><th>文档数</th><th>最近更新</th></tr></thead><tbody>
+  <tr>
+    <td><strong>pinseng-detail-image-generator</strong></td>
+    <td><span class="tag">design</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.7.0</span></td>
+    <td><span class="calls-num">5</span></td>
+    <td><span class="score-val">4.6</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-05-12</td>
+  </tr>
+  <tr>
+    <td><strong>team-market-analysis-report</strong></td>
+    <td><span class="tag">research</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.3.0</span></td>
+    <td><span class="calls-num">4</span></td>
+    <td><span class="score-val">4.5</span></td>
+    <td><span class="doc-count-num">4</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-05-12</td>
+  </tr>
+  <tr>
+    <td><strong>team-competitor-analysis</strong></td>
+    <td><span class="tag">research</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.4.0</span></td>
+    <td><span class="calls-num">4</span></td>
+    <td><span class="score-val">3.8</span></td>
+    <td><span class="doc-count-num">5</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-06-04</td>
+  </tr>
+  <tr>
+    <td><strong>ai-builder-intel</strong></td>
+    <td><span class="tag">research</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.1.0</span></td>
+    <td><span class="calls-num">2</span></td>
+    <td><span class="score-val">5.0</span></td>
+    <td><span class="doc-count-num">2</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-05-26</td>
+  </tr>
+  <tr>
+    <td><strong>team-3c-intel-report</strong></td>
+    <td><span class="tag">—</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.1</span></td>
+    <td><span class="calls-num">2</span></td>
+    <td><span class="score-val">5.0</span></td>
+    <td><span class="doc-count-num">1</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-05-27</td>
+  </tr>
+  <tr>
+    <td><strong>team-weekly-report-generator</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>丛泽龙</td>
+    <td><span class="ver-badge">v2.3.0</span></td>
+    <td><span class="calls-num">2</span></td>
+    <td><span class="score-val">4.0</span></td>
+    <td><span class="doc-count-num">1</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-05-26</td>
+  </tr>
+  <tr>
+    <td><strong>team-ai-hardware-intel-monitor</strong></td>
+    <td><span class="tag">research</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.1</span></td>
+    <td><span class="calls-num">1</span></td>
+    <td><span class="score-val">5.0</span></td>
+    <td><span class="doc-count-num">1</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-05-20</td>
+  </tr>
+  <tr>
+    <td><strong>ai-framework-weekly</strong></td>
+    <td><span class="tag">—</span></td>
+    <td>—</td>
+    <td><span class="ver-badge">v1.0.1</span></td>
+    <td><span class="calls-num">1</span></td>
+    <td><span class="score-val">5.0</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-05-12</td>
+  </tr>
+  <tr>
+    <td><strong>team-company-research</strong></td>
+    <td><span class="tag">research</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="calls-num">1</span></td>
+    <td><span class="score-val">4.0</span></td>
+    <td><span class="doc-count-num">1</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-prd-generation</strong></td>
+    <td><span class="tag">product</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.1.0</span></td>
+    <td><span class="calls-num">1</span></td>
+    <td><span class="score-val">1.0</span></td>
+    <td><span class="doc-count-num">1</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-05-18</td>
+  </tr>
+  <tr>
+    <td><strong>team-wiki-decision-flow</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.3.0</span></td>
+    <td><span class="calls-num">1</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-27</td>
+  </tr>
+  <tr>
+    <td><strong>team-user-and-scenario-analysis</strong></td>
+    <td><span class="tag">research</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.1.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="score-val">5.0</span></td>
+    <td><span class="doc-count-num">1</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-22</td>
+  </tr>
+  <tr>
+    <td><strong>team-project-retrospective</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-3c-ecom-detail-generator</strong></td>
+    <td><span class="tag">design</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-28</td>
+  </tr>
+  <tr>
+    <td><strong>team-feature-prioritization</strong></td>
+    <td><span class="tag">product</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-report-summary-writer</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>丛泽龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-requirement-clarification</strong></td>
+    <td><span class="tag">product</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-interaction-flow-design</strong></td>
+    <td><span class="tag">design</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-charging-protocol-spec</strong></td>
+    <td><span class="tag">compliance</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-27</td>
+  </tr>
+  <tr>
+    <td><strong>team-demo-script-design</strong></td>
+    <td><span class="tag">design</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-action-item-tracking</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-prototype-test-checklist</strong></td>
+    <td><span class="tag">hardware</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-27</td>
+  </tr>
+  <tr>
+    <td><strong>external-ocr-and-documents</strong></td>
+    <td><span class="tag">other</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.1.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-solution-proposal</strong></td>
+    <td><span class="tag">business</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-certification-requirement</strong></td>
+    <td><span class="tag">compliance</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-27</td>
+  </tr>
+  <tr>
+    <td><strong>external-popular-web-designs</strong></td>
+    <td><span class="tag">other</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.1.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>dingtalk-workspace</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-28</td>
+  </tr>
+  <tr>
+    <td><strong>external-local-product-microsite-from-materials</strong></td>
+    <td><span class="tag">other</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.1.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-dingtalk-task-sync</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>丛泽龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>external-weather-query</strong></td>
+    <td><span class="tag">other</span></td>
+    <td>丛泽龙</td>
+    <td><span class="ver-badge">v1.0.1</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-partnership-follow-up</strong></td>
+    <td><span class="tag">business</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-detail-image-layout</strong></td>
+    <td><span class="tag">design</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-30</td>
+  </tr>
+  <tr>
+    <td><strong>team-meeting-minutes</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-dingtalk-wiki-controller</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.1.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-30</td>
+  </tr>
+  <tr>
+    <td><strong>team-data-security-review</strong></td>
+    <td><span class="tag">compliance</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-27</td>
+  </tr>
+  <tr>
+    <td><strong>team-weather-query</strong></td>
+    <td><span class="tag">other</span></td>
+    <td>丛泽龙</td>
+    <td><span class="ver-badge">v1.0.1</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-prototype-planning</strong></td>
+    <td><span class="tag">design</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-visual-asset-management</strong></td>
+    <td><span class="tag">design</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-27</td>
+  </tr>
+  <tr>
+    <td><strong>team-design-specification-structuring</strong></td>
+    <td><span class="tag">design</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-bd-requirement-to-solution</strong></td>
+    <td><span class="tag">business</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-privacy-compliance-check</strong></td>
+    <td><span class="tag">compliance</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-27</td>
+  </tr>
+  <tr>
+    <td><strong>team-wiki-controller</strong></td>
+    <td><span class="tag">project</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-24</td>
+  </tr>
+  <tr>
+    <td><strong>team-information-architecture-design</strong></td>
+    <td><span class="tag">product</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+  <tr>
+    <td><strong>team-hardware-structure-review</strong></td>
+    <td><span class="tag">hardware</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)">2026-04-27</td>
+  </tr>
+  <tr>
+    <td><strong>team-business-opportunity-assessment</strong></td>
+    <td><span class="tag">business</span></td>
+    <td>吕应龙</td>
+    <td><span class="ver-badge">v1.0.0</span></td>
+    <td><span class="na">0</span></td>
+    <td><span class="na">—</span></td>
+    <td><span class="na">0</span></td>
+    <td style="font-size:12px;color:var(--sub)"><span class="na">—</span></td>
+  </tr>
+</tbody></table>
+</div>
+
+</div><!-- /page -->
+<script>
+// 统一用 window.open 跳转，兼容 file:// 协议（浏览器会拦截 target=_blank）
+function openLink(url) { if(url) window.open(url, '_blank'); }
+
+// Change Log 数据
+const CL_DATA = {"pinseng-detail-image-generator": [], "team-market-analysis-report": [{"version": "v1.3.0", "change": "新增文档命名规范：产出文档尾部使用版本号（如 `_v1.1`），不使用日期后缀（如 `_2026Q2`）；新增结论先行写作规范：报告开头须前置核心结论摘要，读者无需翻到末尾即可掌握全部关键判断", "calls": "调用量: 3", "score": "评分: 4.33", "owner": "责任人: 吕应龙", "date": "改动时间: 2026-05-11"}, {"version": "v1.2.0", "change": "新增 Pre-step（调用 team-dingtalk-wiki-controller 按标签读取钉钉知识库上下文）和 Post-step（溯源 Header 注入 → 重复检测 → 归档写入钉钉知识库），Workflow 步骤编号相应调整；Pitfalls 新增 Pre/Post-step 不可跳过约束；Quality Checks 新增 Post-step 执行检查项", "calls": "调用量: 2", "score": "评分: 4.5", "owner": "责任人: 吕应龙", "date": "改动时间: 2026-04-28"}, {"version": "v1.1.7", "change": "新增满意度确认流程（报告交付后必须先询问用户是否满意，确认满意后方可触发任务回顾卡）；Pitfalls 新增禁止直接弹出任务回顾卡的约束", "calls": "调用量: 2", "score": "评分: 4.5", "owner": "责任人: 吕应龙", "date": "改动时间: 2026-04-24"}, {"version": "v1.1.6", "change": "新增信息来源角标规范（双向可跳转）", "calls": "调用量: 2", "score": "评分: 4.5", "owner": "责任人: 吕应龙", "date": "改动时间: 2026-04-24"}], "team-competitor-analysis": [{"version": "v1.4.1", "change": "新增两项用户偏好规范：① 报告中所有可验证数字数据须在行内标注角标来源（格式 `[🔵E1](URL)`），不接受无出处数字；② Output 结构新增「行业前瞻创新特性」专章，要求以表格形式列出品类内具有前瞻性的创新技术特性及代表品牌/产品，不得仅描述常规参数", "calls": "调用量: 8", "score": "评分: 4.4", "owner": "责任人: 林志坚", "date": "改动时间: 2026-06-02"}, {"version": "v1.4.0", "change": "新增「信息管理原则」机制解决上下文过载问题：① 采集即压缩（每个竞品压缩为固定 5 字段摘要，禁止原始文本堆入上下文）；② 分批推进策略（先一级平台建竞品池 → 再 Top 8 深度分析 → 按需补充二三级）；③ 注意力锚点（每次搜索前写明目标字段）；竞品深度分析上限设为 8 个；Quality Checks 新增 2 项；Pitfalls 新增 3 条", "calls": "调用量: 7", "score": "评分: 4.3", "owner": "责任人: 丛泽龙", "date": "改动时间: 2026-05-12"}, {"version": "v1.2.1", "change": "新增角标格式规范：所有可验证事实须在初稿即标注 `[🔵E1](URL)`（外部）/ `[🟠I1](URL)`（内部）格式角标，禁止普通数字角标，文末分类列参考文献；Quality Checks 新增1项；Pitfalls 新增1条", "calls": "调用量: 7", "score": "评分: 4.3", "owner": "责任人: 丛泽龙", "date": "改动时间: 2026-05-12"}, {"version": "v1.2.0", "change": "新增扩大搜索范围规范：Workflow 第2步细化为「全面信息采集」，强制覆盖众筹平台（Kickstarter/Indiegogo）、产品发现平台（Product Hunt）、科技媒体、展会新品；新增价格带矩阵要求（入门/中端/旗舰全覆盖）；新增渠道与销量/融资数据采集要求；Quality Checks 新增3项；Pitfalls 新增2条", "calls": "调用量: 6", "score": "评分: 4.3", "owner": "责任人: 丛泽龙", "date": "改动时间: 2026-05-12"}, {"version": "v1.1.3", "change": "新增关键竞品持续监控机制：Workflow/Output/Recommended Sections 均要求每次报告输出高威胁竞品近期动态并对照分级预警条件响应；Pitfalls 新增「不要把竞品分析做成一次性快照」", "calls": "调用量: 4", "score": "评分: 4.2", "owner": "责任人: 吕应龙", "date": "改动时间: 2026-05-07"}, {"version": "v1.1.2", "change": "新增 Pitfalls：钉钉文档不支持 blockquote 内嵌多行列表，文档溯源块须用普通加粗段落格式", "calls": "调用量: 3", "score": "评分: 4.3", "owner": "责任人: 吕应龙", "date": "改动时间: 2026-05-06"}, {"version": "v1.1.1", "change": "新增「结论先行」为 Output 与 Recommended Sections 的必须首项", "calls": "调用量: 2", "score": "评分: 4.5", "owner": "责任人: 吕应龙", "date": "改动时间: 2026-04-24"}, {"version": "v1.1.0", "change": "强化核心功能与交互方式的优先级；增加视觉化输出强制要求；确立通用性原则，移除硬编码竞品列表", "calls": "调用量: 0", "score": "评分: 0.0", "owner": "责任人: AI产品中心-吕应龙", "date": "改动时间: 2026-04-22"}, {"version": "v1.0.0", "change": "补全竞品分析的比较口径、竞品分层、输出结构与常见误区", "calls": "调用量: 0", "score": "评分: 0.0", "owner": "责任人: AI产品中心-吕应龙", "date": "改动时间: 2026-04-22"}], "team-user-and-scenario-analysis": [{"version": "v1.1.1", "change": "按设计纪律补全 YAML frontmatter（name/version/description/tags），补充 Pre-step/Post-step 结构，修正版本号与 Change Log 一致（v1.1.1）；Quality Checks 新增数据角标检查项", "calls": "调用量: 2", "score": "评分: 4.5", "owner": "责任人: 吕应龙", "date": "改动时间: 2026-05-09"}, {"version": "v1.1.0", "change": "增加报告交付质量标准，要求正文核心论点必须包含 [N] 格式的权威数据角标", "calls": "调用量: 0", "score": "评分: 0.0", "owner": "责任人: AI产品中心-吕应龙", "date": "改动时间: 2026-04-22"}, {"version": "v1.0.0", "change": "补全用户与场景分析的角色拆解、场景框架、输出结构与质量检查", "calls": "调用量: 0", "score": "评分: 0.0", "owner": "责任人: AI产品中心-吕应龙", "date": "改动时间: 2026-04-22"}], "ai-builder-intel": [], "team-3c-intel-report": [], "team-prd-generation": []};
+
+function toggleCL(btn) {
+  const panel = document.getElementById('clPanel');
+  const name  = btn.dataset.skill;
+  if (panel.classList.contains('open') && document.getElementById('clPanelName').textContent === name) {
+    closeCL(); return;
+  }
+  document.getElementById('clPanelName').textContent = name;
+  const entries = CL_DATA[name] || [];
+  let body = '';
+  if (!entries.length) {
+    body = '<p class="cl-empty">暂无 Change Log 记录</p>';
+  } else {
+    body = '<table class="cl-table"><thead><tr><th>版本</th><th>改动内容</th><th>调用量</th><th>评分</th><th>责任人</th><th>时间</th></tr></thead><tbody>';
+    entries.forEach(e => {
+      body += `<tr><td class="cl-ver">${e.version}</td><td class="cl-change">${e.change}</td><td class="cl-calls">${e.calls}</td><td class="cl-score">${e.score}</td><td class="cl-owner">${e.owner}</td><td class="cl-date">${e.date}</td></tr>`;
+    });
+    body += '</tbody></table>';
+  }
+  document.getElementById('clPanelBody').innerHTML = body;
+  // 把面板移到被点击按钮所在行的下方（rank-inner 内）
+  const rankInner = document.querySelector('.rank-inner');
+  rankInner.after(panel);
+  panel.classList.add('open');
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function closeCL() {
+  document.getElementById('clPanel').classList.remove('open');
+}
+
+// Change Log 面板 — 文档数 TOP5 专属（展示在该卡片下方）
+function toggleCLDocs(btn) {
+  const panel = document.getElementById('clPanelDocs');
+  const skill = btn.dataset.skill;
+  if (panel.classList.contains('open') && document.getElementById('clPanelDocsName').textContent === skill) {
+    closeCLDocs(); return;
+  }
+  const entries = CL_DATA[skill] || [];
+  document.getElementById('clPanelDocsName').textContent = skill;
+  let body = '';
+  if (!entries.length) {
+    body = '<p class="cl-empty">暂无 Change Log 记录</p>';
+  } else {
+    body = '<table class="cl-table"><thead><tr><th>版本</th><th>改动</th><th>调用量</th><th>评分</th><th>责任人</th><th>时间</th></tr></thead><tbody>';
+    entries.forEach(e => {
+      body += `<tr><td class="cl-ver">${e.version}</td><td class="cl-change">${e.change}</td><td class="cl-calls">${e.calls}</td><td class="cl-score">${e.score}</td><td class="cl-owner">${e.owner}</td><td class="cl-date">${e.date}</td></tr>`;
+    });
+    body += '</tbody></table>';
+  }
+  document.getElementById('clPanelDocsBody').innerHTML = body;
+  // 把面板移到文档数TOP5卡片（rank-card）内部末尾
+  const docsCard = document.getElementById('clPanelDocs').closest('.rank-card') ||
+                   btn.closest('.rank-card');
+  if (docsCard) docsCard.appendChild(panel);
+  panel.classList.add('open');
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function closeCLDocs() {
+  document.getElementById('clPanelDocs').classList.remove('open');
+}
+
+// 完整清单排序
+const table = document.getElementById('skillTable');
+const headers = table.querySelectorAll('thead th');
+let sortCol = 4, sortAsc = false;
+headers.forEach((th, i) => {
+  th.addEventListener('click', () => {
+    if(sortCol === i) sortAsc = !sortAsc;
+    else { sortCol = i; sortAsc = false; }
+    sortTable(i, sortAsc);
+    headers.forEach(h => h.style.color = '');
+    th.style.color = 'var(--blue)';
+  });
+});
+function sortTable(col, asc) {
+  const tbody = table.querySelector('tbody');
+  const rows  = Array.from(tbody.rows);
+  rows.sort((a, b) => {
+    const av = a.cells[col].innerText.replace(/[^\d.]/g,'') || '0';
+    const bv = b.cells[col].innerText.replace(/[^\d.]/g,'') || '0';
+    const an = parseFloat(av), bn = parseFloat(bv);
+    if(!isNaN(an) && !isNaN(bn)) return asc ? an-bn : bn-an;
+    return asc ? av.localeCompare(bv,'zh') : bv.localeCompare(av,'zh');
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// 多文档浮层
+const popup = document.createElement('div');
+popup.className = 'doc-popup';
+popup.innerHTML = '<button class="doc-popup-close" onclick="closeDocPopup()">✕</button><div class="doc-popup-title">产出文档</div><div id="docPopupList"></div>';
+document.body.appendChild(popup);
+
+function openDocPopup(btn) {
+  const docs = JSON.parse(btn.dataset.docs);
+  const list = document.getElementById('docPopupList');
+  list.innerHTML = docs.map(d =>
+    d.l ? `<a class="doc-popup-item" href="javascript:void(0)" onclick="openLink('${d.l}')">&#128196; ${d.t} <span style="margin-left:auto;font-size:11px;color:var(--blue)">↗</span></a>`
+         : `<div class="doc-popup-item">&#128196; ${d.t}</div>`
+  ).join('');
+  const rect = btn.getBoundingClientRect();
+  popup.style.top  = (rect.bottom + window.scrollY + 8) + 'px';
+  popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 420) + 'px';
+  popup.classList.add('open');
+}
+function closeDocPopup() { popup.classList.remove('open'); }
+document.addEventListener('click', e => {
+  if (!popup.contains(e.target) && !e.target.classList.contains('doc-count-btn')) closeDocPopup();
+});
+document.querySelectorAll('.doc-count-btn').forEach(btn => {
+  btn.addEventListener('click', e => { e.stopPropagation(); openDocPopup(btn); });
+});
+</script>
+</body></html>
